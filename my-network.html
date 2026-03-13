@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>My Network</title>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  :root {
+    --primary: #5B6CF9; --primary-dark: #4451d4;
+    --surface: #ffffff; --bg: #F4F5FA;
+    --text: #1a1a2e; --subtext: #6b7280;
+    --border: #e5e7eb; --danger: #ef4444;
+    --green: #10b981; --orange: #f59e0b;
+    --radius: 14px; --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, #5B6CF9, #7c3aed); color: #fff; padding: 16px 20px 60px; }
+  .header-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header p { font-size: 13px; opacity: 0.8; margin-top: 2px; }
+  .header-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .hdr-btn { background: rgba(255,255,255,0.2); border: none; color: #fff; border-radius: 10px; padding: 8px 10px; font-size: 18px; cursor: pointer; }
+  .header-stats { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .stat-chip { background: rgba(255,255,255,0.2); border-radius: 20px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .sync-pill { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.2); border-radius: 20px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; flex-shrink: 0; }
+  .sync-dot.online { background: #4ade80; }
+  .sync-dot.syncing { background: #fbbf24; animation: pulse 1s infinite; }
+  .sync-dot.error { background: #f87171; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Birthday banner */
+  .bday-bar { margin: 10px 16px 0; background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 12px; padding: 10px 14px; }
+  .bday-bar.hidden { display: none; }
+  .bday-bar-title { font-size: 14px; font-weight: 700; color: #c2410c; }
+  .bday-items { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+  .bday-item { font-size: 13px; color: #92400e; display: flex; justify-content: space-between; }
+  .bday-item .bday-days { font-weight: 700; }
+
+  /* Search + Filter Card */
+  .search-card { background: var(--surface); border-radius: var(--radius); margin: -40px 16px 0; padding: 14px; box-shadow: var(--shadow); position: relative; z-index: 10; }
+  .search-row { display: flex; gap: 8px; align-items: center; }
+  .search-input { flex: 1; border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 15px; outline: none; background: var(--bg); color: var(--text); }
+  .search-input:focus { border-color: var(--primary); }
+  .filter-btn { background: var(--bg); border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 18px; cursor: pointer; flex-shrink: 0; }
+  .filter-btn.active { background: var(--primary); border-color: var(--primary); }
+  .filter-row { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .filter-row::-webkit-scrollbar { display: none; }
+  .filter-chip { white-space: nowrap; padding: 6px 14px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--bg); font-size: 12px; font-weight: 600; cursor: pointer; color: var(--subtext); }
+  .filter-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  /* Ping alert bar */
+  .ping-bar { margin: 14px 16px 0; background: #fff8ed; border: 1.5px solid #fde68a; border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
+  .ping-bar .txt { font-size: 13px; color: #92400e; flex: 1; }
+  .ping-bar .txt strong { display: block; font-size: 14px; }
+  .ping-bar.hidden { display: none; }
+
+  /* List */
+  .list-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px 8px; }
+  .list-header h2 { font-size: 15px; font-weight: 700; color: var(--subtext); text-transform: uppercase; letter-spacing: 0.5px; }
+  .contact-list { padding: 0 16px 120px; display: flex; flex-direction: column; gap: 10px; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--subtext); }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+  /* Contact Card */
+  .contact-card { background: var(--surface); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); cursor: pointer; transition: transform 0.1s; }
+  .contact-card:active { transform: scale(0.98); }
+  .card-top { display: flex; align-items: center; gap: 12px; }
+  .avatar { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .card-info { flex: 1; min-width: 0; }
+  .card-name { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta { font-size: 12px; color: var(--subtext); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .ping-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px; white-space: nowrap; }
+  .ping-ok { background: #d1fae5; color: #065f46; }
+  .ping-soon { background: #fef3c7; color: #92400e; }
+  .ping-overdue { background: #fee2e2; color: #991b1b; }
+  .card-tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+  .cat-Close-Friends { background: #ffe4e6; color: #9f1239; }
+  .cat-Friends { background: #ede9fe; color: #5b21b6; }
+  .cat-Work { background: #dbeafe; color: #1e40af; }
+  .cat-Family { background: #fce7f3; color: #9d174d; }
+  .cat-College { background: #d1fae5; color: #065f46; }
+  .cat-Acquaintance { background: #f3f4f6; color: #374151; }
+  .cat-Other { background: #fef3c7; color: #92400e; }
+  .cat-custom { background: #e0f2fe; color: #0369a1; }
+
+  /* FAB */
+  .fab-area { position: fixed; bottom: 24px; right: 20px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; z-index: 100; }
+  .fab { width: 58px; height: 58px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 28px; border: none; box-shadow: 0 4px 20px rgba(91,108,249,0.5); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.15s; }
+  .fab:active { transform: scale(0.92); }
+
+  /* Modal base */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; display: flex; align-items: flex-end; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal { background: var(--surface); border-radius: 24px 24px 0 0; width: 100%; max-width: 540px; max-height: 92vh; overflow-y: auto; padding: 20px 20px 40px; transform: translateY(100%); transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+  .modal-overlay.open .modal { transform: translateY(0); }
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 4px; margin: 0 auto 16px; }
+  .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 18px; }
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 12px; font-weight: 700; color: var(--subtext); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; display: block; }
+  .form-input, .form-select, .form-textarea { width: 100%; border: 1.5px solid var(--border); border-radius: 10px; padding: 11px 14px; font-size: 15px; outline: none; font-family: inherit; background: var(--bg); color: var(--text); }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--primary); }
+  .form-textarea { resize: vertical; min-height: 80px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+  .btn { flex: 1; padding: 14px; border-radius: 12px; border: none; font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+  .btn:active { opacity: 0.8; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-ghost { background: var(--bg); color: var(--subtext); border: 1.5px solid var(--border); }
+
+  /* Sync Setup */
+  .sync-setup-card { background: var(--bg); border-radius: 12px; padding: 16px; margin-bottom: 14px; border: 1.5px solid var(--border); }
+  .sync-setup-card h4 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .sync-status-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--bg); border-radius: 10px; margin-bottom: 14px; }
+  .step-badge { background: var(--primary); color: #fff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .step-text { font-size: 14px; }
+  .code-block { background: #1e293b; color: #e2e8f0; border-radius: 10px; padding: 12px 14px; font-family: monospace; font-size: 12px; margin: 8px 0; overflow-x: auto; white-space: pre; }
+
+  /* Detail Modal */
+  .detail-avatar { width: 72px; height: 72px; border-radius: 50%; font-size: 28px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; margin: 0 auto 12px; }
+  .detail-name { text-align: center; font-size: 22px; font-weight: 800; }
+  .detail-subtitle { text-align: center; color: var(--subtext); font-size: 14px; margin-top: 4px; }
+  .detail-section { margin-top: 18px; }
+  .detail-section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--subtext); margin-bottom: 8px; }
+  .detail-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-icon { font-size: 18px; flex-shrink: 0; }
+  .detail-val { flex: 1; }
+  .detail-val .label { font-size: 11px; color: var(--subtext); }
+  .quick-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .qa-btn { flex: 1; min-width: 60px; padding: 10px 6px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--bg); font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; }
+  .qa-btn .qa-icon { font-size: 20px; display: block; margin-bottom: 2px; }
+  .log-item { padding: 10px 12px; background: var(--bg); border-radius: 10px; margin-bottom: 8px; }
+  .log-item-date { font-size: 11px; color: var(--subtext); font-weight: 600; }
+  .log-item-note { font-size: 14px; margin-top: 3px; }
+
+  /* Dashboard */
+  .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .dash-card { background: var(--bg); border-radius: 12px; padding: 14px; text-align: center; }
+  .dash-card .big { font-size: 32px; font-weight: 800; color: var(--primary); }
+  .dash-card .lbl { font-size: 12px; color: var(--subtext); margin-top: 2px; }
+  .dash-bar-row { margin-bottom: 10px; }
+  .dash-bar-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+  .dash-bar-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .dash-bar-fill { height: 100%; border-radius: 4px; background: var(--primary); }
+  .health-score { text-align: center; padding: 20px; }
+  .health-score .score { font-size: 56px; font-weight: 900; }
+  .health-score .grade { font-size: 18px; font-weight: 700; margin-top: 4px; }
+
+  /* Location filter */
+  .loc-list { display: flex; flex-direction: column; gap: 8px; max-height: 55vh; overflow-y: auto; }
+  .loc-item { padding: 12px 16px; border-radius: 10px; background: var(--bg); font-size: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .loc-item.selected { background: var(--primary); color: #fff; }
+  .loc-count { font-size: 12px; background: var(--border); padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+
+  /* Group manager */
+  .group-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .group-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--bg); border-radius: 10px; }
+  .group-item-name { font-size: 15px; font-weight: 600; }
+  .group-item-del { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--danger); padding: 2px 6px; }
+  .group-add-row { display: flex; gap: 8px; }
+  .group-add-input { flex: 1; border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 15px; outline: none; background: var(--bg); color: var(--text); }
+
+  /* Export */
+  .export-actions { display: flex; flex-direction: column; gap: 10px; }
+  .import-area { border: 2px dashed var(--border); border-radius: 12px; padding: 16px; text-align: center; font-size: 14px; color: var(--subtext); cursor: pointer; }
+  .hidden-input { display: none; }
+
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111827; --surface: #1f2937; --text: #f9fafb; --subtext: #9ca3af; --border: #374151; }
+    .form-input, .form-select, .form-textarea, .search-input, .group-add-input { background: #111827; color: #f9fafb; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-row">
+    <div>
+      <h1>My Network</h1>
+      <p>Stay connected with the people that matter</p>
+    </div>
+    <div class="header-actions">
+      <button class="hdr-btn" onclick="openDashboard()" title="Dashboard">📊</button>
+      <button class="hdr-btn" onclick="openGroupManager()" title="Manage Groups">🏷️</button>
+      <button class="hdr-btn" onclick="openExportImport()" title="Export / Import">💾</button>
+      <button class="hdr-btn" onclick="openSyncModal()" title="Sync Settings">☁️</button>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="stat-chip" id="statTotal">0 contacts</div>
+    <div class="stat-chip" id="statOverdue" onclick="filterOverdue()">0 overdue</div>
+    <div class="sync-pill" id="syncPill" onclick="openSyncModal()">
+      <div class="sync-dot" id="syncDot"></div>
+      <span id="syncLabel">Not syncing</span>
+    </div>
+  </div>
+</div>
+
+<div class="bday-bar hidden" id="bdayBar">
+  <div class="bday-bar-title">🎂 Upcoming birthdays</div>
+  <div class="bday-items" id="bdayItems"></div>
+</div>
+
+<div class="search-card">
+  <div class="search-row">
+    <input class="search-input" id="searchInput" placeholder="Search name, company, college, city..." oninput="render()" />
+    <button class="filter-btn" id="locBtn" onclick="openLocationFilter()" title="Filter by location">📍</button>
+  </div>
+  <div class="filter-row" id="categoryFilters"></div>
+</div>
+
+<div class="ping-bar hidden" id="pingBar">
+  <div style="font-size:20px">⏰</div>
+  <div class="txt"><strong id="pingBarTitle"></strong><span id="pingBarSub"></span></div>
+</div>
+
+<div class="list-header">
+  <h2 id="listLabel">All contacts</h2>
+  <span id="listCount" style="font-size:13px;color:var(--subtext);"></span>
+</div>
+<div class="contact-list" id="contactList"></div>
+
+<div class="fab-area">
+  <button class="fab" onclick="openAddModal()">+</button>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="editModal" onclick="closeEditModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="editModalTitle">Add Contact</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;" id="importContactBtn">
+      <button class="btn btn-ghost" style="font-size:13px;padding:10px;" onclick="importFromContacts()">📱 Import from Phone Contacts</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Full Name *</label>
+      <input class="form-input" id="fName" placeholder="e.g. Priya Sharma" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Group *</label>
+        <select class="form-select" id="fCat"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ping Frequency</label>
+        <select class="form-select" id="fFreq">
+          <option value="7">Weekly</option>
+          <option value="14">Biweekly</option>
+          <option value="30" selected>Monthly</option>
+          <option value="60">Every 2 months</option>
+          <option value="90">Quarterly</option>
+          <option value="180">Every 6 months</option>
+          <option value="365">Yearly</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">City</label>
+        <input class="form-input" id="fCity" placeholder="e.g. Mumbai" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Country</label>
+        <input class="form-input" id="fCountry" placeholder="e.g. India" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Company / Org</label>
+        <input class="form-input" id="fCompany" placeholder="e.g. Google" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">College / School</label>
+        <input class="form-input" id="fCollege" placeholder="e.g. IIT Delhi" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Phone / WhatsApp</label>
+        <input class="form-input" id="fPhone" placeholder="+91 98765..." type="tel" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" id="fEmail" placeholder="email@..." type="email" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Birthday</label>
+        <input class="form-input" id="fBday" type="date" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Last Contacted</label>
+        <input class="form-input" id="fLast" type="date" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes / How you know them</label>
+      <textarea class="form-textarea" id="fNotes" placeholder="e.g. Met at React Conf 2024, talks about AI startups..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeEditModalDirect()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveContact()">Save</button>
+    </div>
+    <div class="btn-row" id="deleteRow" style="display:none;margin-top:4px;">
+      <button class="btn btn-danger" onclick="deleteContact()">Delete Contact</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="detailModal" onclick="closeDetailModal(event)">
+  <div class="modal" id="detailContent"></div>
+</div>
+
+<!-- LOG MODAL -->
+<div class="modal-overlay" id="logModal" onclick="closeLogModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Log Interaction</div>
+    <div class="form-group">
+      <label class="form-label">Date</label>
+      <input class="form-input" id="logDate" type="date" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <textarea class="form-textarea" id="logNote" placeholder="What did you talk about?"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeLogModalDirect()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLog()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOCATION FILTER MODAL -->
+<div class="modal-overlay" id="locModal" onclick="closeLocModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Filter by Location</div>
+    <div class="loc-list" id="locList"></div>
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeLocModalDirect()">Close</button>
+      <button class="btn btn-primary" onclick="clearLocFilter()">Show All</button>
+    </div>
+  </div>
+</div>
+
+<!-- GROUP MANAGER MODAL -->
+<div class="modal-overlay" id="groupModal" onclick="closeGroupModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Manage Groups</div>
+    <div class="group-list" id="groupList"></div>
+    <div class="group-add-row">
+      <input class="group-add-input" id="newGroupInput" placeholder="New group name..." />
+      <button class="btn btn-primary" style="flex:0;padding:10px 18px;" onclick="addCustomGroup()">Add</button>
+    </div>
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeGroupModalDirect()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD MODAL -->
+<div class="modal-overlay" id="dashModal" onclick="closeDashModal(event)">
+  <div class="modal" id="dashContent"></div>
+</div>
+
+<!-- EXPORT/IMPORT MODAL -->
+<div class="modal-overlay" id="exportModal" onclick="closeExportModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Backup & Restore</div>
+    <div class="export-actions">
+      <p style="font-size:14px;color:var(--subtext);margin-bottom:8px;">Export your contacts as a backup file.</p>
+      <button class="btn btn-primary" onclick="exportContacts()">Export as JSON (full backup)</button>
+      <button class="btn btn-ghost" onclick="exportCSV()">Export as CSV</button>
+      <div style="border-top:1px solid var(--border);margin:8px 0;"></div>
+      <p style="font-size:14px;color:var(--subtext);margin-bottom:8px;">Restore from a previously exported JSON file.</p>
+      <div class="import-area" onclick="document.getElementById('importFile').click()">Tap to select a JSON backup file</div>
+      <input type="file" class="hidden-input" id="importFile" accept=".json" onchange="importContacts(event)" />
+    </div>
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeExportModalDirect()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- SYNC SETUP MODAL -->
+<div class="modal-overlay" id="syncModal" onclick="closeSyncModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Cloud Sync Setup</div>
+    <div class="sync-status-row" id="syncStatusRow">
+      <div class="sync-dot" id="syncDot2"></div>
+      <div style="font-size:14px;" id="syncStatusText">Not connected</div>
+    </div>
+
+    <p style="font-size:14px;color:var(--subtext);margin-bottom:16px;">Connect to Firebase to sync your contacts across all devices in real time. Takes about 5 minutes to set up.</p>
+
+    <div id="syncSetupForm">
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <div class="step-badge">1</div>
+          <div class="step-text"><strong>Create a free Firebase project</strong></div>
+        </div>
+        <div style="font-size:13px;color:var(--subtext);padding-left:32px;line-height:1.6;">
+          Go to <strong>console.firebase.google.com</strong><br>
+          Click <strong>Add project</strong>, name it "My Network"<br>
+          Disable Google Analytics (optional) and click <strong>Create</strong>
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <div class="step-badge">2</div>
+          <div class="step-text"><strong>Create a Realtime Database</strong></div>
+        </div>
+        <div style="font-size:13px;color:var(--subtext);padding-left:32px;line-height:1.6;">
+          In your project sidebar: <strong>Build > Realtime Database</strong><br>
+          Click <strong>Create database</strong>, choose any region<br>
+          Start in <strong>Test mode</strong> (you can secure it later)<br>
+          Copy your <strong>Database URL</strong> (ends with .firebaseio.com)
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <div class="step-badge">3</div>
+          <div class="step-text"><strong>Get your config</strong></div>
+        </div>
+        <div style="font-size:13px;color:var(--subtext);padding-left:32px;line-height:1.6;">
+          Go to <strong>Project Settings</strong> (gear icon)<br>
+          Scroll to <strong>Your apps</strong>, click the Web icon (&lt;/&gt;)<br>
+          Register the app, copy the <strong>firebaseConfig</strong> object
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Firebase Database URL</label>
+        <input class="form-input" id="fbDbUrl" placeholder="https://your-project-default-rtdb.firebaseio.com" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Firebase API Key</label>
+        <input class="form-input" id="fbApiKey" placeholder="AIza..." />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Firebase Project ID</label>
+        <input class="form-input" id="fbProjectId" placeholder="my-network-xxxxx" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Your Sync Key (like a password for your data)</label>
+        <input class="form-input" id="fbSyncKey" placeholder="e.g. GajjuPrivateNetwork2024" type="password" />
+        <div style="font-size:12px;color:var(--subtext);margin-top:4px;">Use the same key on all your devices. Anyone with this key can access your data.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="closeSyncModalDirect()">Cancel</button>
+        <button class="btn btn-primary" onclick="connectFirebase()">Connect & Sync</button>
+      </div>
+      <div id="syncConnected" style="display:none;">
+        <div style="text-align:center;padding:20px;">
+          <div style="font-size:48px;margin-bottom:8px;">✅</div>
+          <div style="font-size:18px;font-weight:700;color:var(--green);">Syncing!</div>
+          <div style="font-size:13px;color:var(--subtext);margin-top:6px;">Your data is live on Firebase.<br>Open this app on any device and enter the same sync key.</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" onclick="disconnectFirebase()">Disconnect</button>
+          <button class="btn btn-primary" onclick="closeSyncModalDirect()">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ======= CONSTANTS =======
+const DEFAULT_CATEGORIES = ['Close Friends','Friends','Work','Family','College','Acquaintance','Other'];
+const CAT_EMOJI = {'Close Friends':'💛','Friends':'👥','Work':'💼','Family':'❤️','College':'🎓','Acquaintance':'🤝','Other':'✨'};
+const AVATAR_COLORS = ['#5B6CF9','#7c3aed','#be185d','#1d4ed8','#065f46','#92400e','#0e7490','#c2410c'];
+
+// ======= FIREBASE CONFIG (pre-filled) =======
+const HARDCODED_FB_CONFIG = {
+  apiKey: "AIzaSyA2ZXaOCr9_F8PmEvFqIeik75Jy6EQ0xVM",
+  databaseURL: "https://to-do-2109a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "to-do-2109a"
+};
+
+// ======= STATE =======
+let contacts = JSON.parse(localStorage.getItem('nn_contacts') || '[]');
+let customGroups = JSON.parse(localStorage.getItem('nn_groups') || '[]');
+let activeCategory = 'All';
+let activeLocation = null;
+let editingId = null;
+let loggingId = null;
+let showOverdueOnly = false;
+
+// Firebase state
+let fbApp = null;
+let fbDb = null;
+let fbListener = null;
+let syncConnected = false;
+let pendingWrite = false;
+
+// Load Firebase config from localStorage (fall back to hardcoded)
+const fbConfig = JSON.parse(localStorage.getItem('nn_fbConfig') || 'null');
+const fbSyncKey = localStorage.getItem('nn_fbSyncKey') || '';
+
+// ======= HELPERS =======
+function saveLocal() { localStorage.setItem('nn_contacts', JSON.stringify(contacts)); }
+function saveGroups() { localStorage.setItem('nn_groups', JSON.stringify(customGroups)); }
+function allCategories() { return ['All', ...DEFAULT_CATEGORIES, ...customGroups]; }
+function catEmoji(cat) { return CAT_EMOJI[cat] || '🏷️'; }
+function avatarColor(name) {
+  let h = 0; for (let c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+function initials(name) { return name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase(); }
+function daysSince(d) { if (!d) return null; return Math.floor((new Date() - new Date(d)) / 86400000); }
+function daysUntil(d) {
+  if (!d) return null;
+  const today = new Date();
+  const bd = new Date(d); bd.setFullYear(today.getFullYear());
+  if (bd < today) bd.setFullYear(today.getFullYear() + 1);
+  return Math.floor((bd - today) / 86400000);
+}
+function pingStatus(c) {
+  const days = daysSince(c.lastContacted);
+  if (days === null) return { label: 'Never pinged', cls: 'ping-overdue' };
+  const freq = parseInt(c.pingFreq || 30);
+  if (days > freq) return { label: days + 'd overdue', cls: 'ping-overdue' };
+  if (days > freq * 0.75) return { label: 'Ping soon', cls: 'ping-soon' };
+  return { label: days + 'd ago', cls: 'ping-ok' };
+}
+function formatDate(d) {
+  if (!d) return 'Not set';
+  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function isOverdue(c) {
+  const d = daysSince(c.lastContacted);
+  return (d === null || d > parseInt(c.pingFreq || 30));
+}
+function hashKey(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+  return 'k' + Math.abs(h).toString(16);
+}
+function populateCatSelect(sel) {
+  const cats = [...DEFAULT_CATEGORIES, ...customGroups];
+  document.getElementById('fCat').innerHTML = cats.map(c =>
+    '<option value="' + c + '"' + (c === sel ? ' selected' : '') + '>' + catEmoji(c) + ' ' + c + '</option>'
+  ).join('');
+}
+
+// ======= FIREBASE SYNC =======
+function setSyncStatus(state, label) {
+  const dot = document.getElementById('syncDot');
+  const dot2 = document.getElementById('syncDot2');
+  const lbl = document.getElementById('syncLabel');
+  const stxt = document.getElementById('syncStatusText');
+  [dot, dot2].forEach(d => { if (d) { d.className = 'sync-dot'; d.classList.add(state); } });
+  if (lbl) lbl.textContent = label;
+  if (stxt) stxt.textContent = label;
+}
+
+function initFirebase(config, syncKey) {
+  try {
+    if (fbApp) {
+      try { fbApp.delete(); } catch(e) {}
+    }
+    fbApp = firebase.initializeApp(config, 'mynetwork-' + Date.now());
+    fbDb = firebase.database(fbApp);
+    const path = 'networks/' + hashKey(syncKey);
+
+    setSyncStatus('syncing', 'Connecting...');
+
+    fbListener = fbDb.ref(path).on('value', snapshot => {
+      const data = snapshot.val();
+      if (data) {
+        contacts = data.contacts || [];
+        customGroups = data.groups || [];
+        saveLocal();
+        saveGroups();
+        render();
+      }
+      syncConnected = true;
+      setSyncStatus('online', 'Synced');
+    }, err => {
+      setSyncStatus('error', 'Sync error');
+      console.error('Firebase error:', err);
+    });
+
+    return true;
+  } catch(e) {
+    setSyncStatus('error', 'Config error');
+    console.error('Firebase init error:', e);
+    return false;
+  }
+}
+
+function writeToFirebase() {
+  if (!fbDb || !fbSyncKey) return;
+  const path = 'networks/' + hashKey(fbSyncKey);
+  setSyncStatus('syncing', 'Saving...');
+  fbDb.ref(path).set({ contacts, groups: customGroups })
+    .then(() => setSyncStatus('online', 'Synced'))
+    .catch(() => setSyncStatus('error', 'Save failed'));
+}
+
+function save() {
+  saveLocal();
+  writeToFirebase();
+}
+
+function connectFirebase() {
+  const dbUrl = document.getElementById('fbDbUrl').value.trim();
+  const apiKey = document.getElementById('fbApiKey').value.trim();
+  const projectId = document.getElementById('fbProjectId').value.trim();
+  const syncKey = document.getElementById('fbSyncKey').value.trim();
+  if (!dbUrl || !apiKey || !projectId || !syncKey) {
+    alert('Please fill in all fields.');
+    return;
+  }
+  const config = { apiKey, databaseURL: dbUrl, projectId };
+  const ok = initFirebase(config, syncKey);
+  if (ok) {
+    localStorage.setItem('nn_fbConfig', JSON.stringify(config));
+    localStorage.setItem('nn_fbSyncKey', syncKey);
+    document.getElementById('syncSetupForm').querySelector('.btn-row').style.display = 'none';
+    document.getElementById('syncConnected').style.display = 'block';
+    writeToFirebase();
+  }
+}
+
+function disconnectFirebase() {
+  if (fbListener && fbDb) { try { fbDb.ref().off(); } catch(e) {} }
+  fbApp = null; fbDb = null; fbListener = null; syncConnected = false;
+  localStorage.removeItem('nn_fbConfig');
+  localStorage.removeItem('nn_fbSyncKey');
+  setSyncStatus('', 'Not syncing');
+  closeSyncModalDirect();
+}
+
+function openSyncModal() {
+  const savedConfig = JSON.parse(localStorage.getItem('nn_fbConfig') || 'null');
+  const savedKey = localStorage.getItem('nn_fbSyncKey') || '';
+  const cfg = savedConfig || HARDCODED_FB_CONFIG;
+  // Always pre-fill the Firebase fields from config
+  document.getElementById('fbDbUrl').value = cfg.databaseURL || '';
+  document.getElementById('fbApiKey').value = cfg.apiKey || '';
+  document.getElementById('fbProjectId').value = cfg.projectId || '';
+  document.getElementById('fbSyncKey').value = savedKey;
+  if (syncConnected) {
+    document.getElementById('syncSetupForm').querySelector('.btn-row').style.display = 'none';
+    document.getElementById('syncConnected').style.display = 'block';
+  } else {
+    document.getElementById('syncSetupForm').querySelector('.btn-row').style.display = 'flex';
+    document.getElementById('syncConnected').style.display = 'none';
+  }
+  document.getElementById('syncModal').classList.add('open');
+}
+function closeSyncModal(e) { if (e.target === document.getElementById('syncModal')) closeSyncModalDirect(); }
+function closeSyncModalDirect() { document.getElementById('syncModal').classList.remove('open'); }
+
+// ======= RENDER =======
+function render() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  document.getElementById('categoryFilters').innerHTML = allCategories().map(c =>
+    '<div class="filter-chip ' + (activeCategory === c ? 'active' : '') + '" onclick="setCategory(\'' + c + '\')">' + (c === 'All' ? '🌐' : catEmoji(c)) + ' ' + c + '</div>'
+  ).join('');
+
+  let list = contacts.filter(c => {
+    const mQ = !q || [c.name,c.company,c.college,c.city,c.country,c.notes].some(v => (v||'').toLowerCase().includes(q));
+    const mCat = activeCategory === 'All' || c.category === activeCategory;
+    const mLoc = !activeLocation || c.country === activeLocation || c.city === activeLocation;
+    const mOvd = !showOverdueOnly || isOverdue(c);
+    return mQ && mCat && mLoc && mOvd;
+  });
+  list.sort((a, b) => (daysSince(b.lastContacted)||9999) - parseInt(b.pingFreq||30) - ((daysSince(a.lastContacted)||9999) - parseInt(a.pingFreq||30)));
+
+  const overdue = contacts.filter(isOverdue).length;
+  document.getElementById('statTotal').textContent = contacts.length + ' contacts';
+  document.getElementById('statOverdue').textContent = overdue + ' overdue';
+
+  const pingBar = document.getElementById('pingBar');
+  if (overdue > 0 && !showOverdueOnly) {
+    pingBar.classList.remove('hidden');
+    document.getElementById('pingBarTitle').textContent = overdue + ' contact' + (overdue > 1 ? 's' : '') + ' need a ping!';
+    document.getElementById('pingBarSub').textContent = contacts.filter(isOverdue).slice(0,3).map(c => c.name.split(' ')[0]).join(', ');
+  } else { pingBar.classList.add('hidden'); }
+
+  const upcoming = contacts.filter(c => c.birthday && daysUntil(c.birthday) !== null && daysUntil(c.birthday) <= 14)
+    .sort((a,b) => daysUntil(a.birthday) - daysUntil(b.birthday));
+  const bdayBar = document.getElementById('bdayBar');
+  if (upcoming.length > 0) {
+    bdayBar.classList.remove('hidden');
+    document.getElementById('bdayItems').innerHTML = upcoming.map(c => {
+      const d = daysUntil(c.birthday);
+      return '<div class="bday-item"><span>' + c.name + '</span><span class="bday-days">' + (d === 0 ? 'Today!' : 'in ' + d + ' days') + '</span></div>';
+    }).join('');
+  } else { bdayBar.classList.add('hidden'); }
+
+  document.getElementById('locBtn').classList.toggle('active', !!activeLocation);
+  let label = showOverdueOnly ? 'Needs a ping' : activeLocation ? 'In ' + activeLocation : activeCategory === 'All' ? 'All contacts' : catEmoji(activeCategory) + ' ' + activeCategory;
+  document.getElementById('listLabel').textContent = label;
+  document.getElementById('listCount').textContent = list.length + ' shown';
+
+  const el = document.getElementById('contactList');
+  if (!list.length) { el.innerHTML = '<div class="empty-state"><div class="icon">🤷</div><p>No contacts found.<br>Tap + to add someone!</p></div>'; return; }
+  el.innerHTML = list.map(c => {
+    const ps = pingStatus(c);
+    const isDefault = DEFAULT_CATEGORIES.includes(c.category);
+    const cCls = isDefault ? 'cat-' + (c.category||'').replace(/ /g,'-') : 'cat-custom';
+    const tags = [
+      c.category ? '<span class="tag ' + cCls + '">' + catEmoji(c.category) + ' ' + c.category + '</span>' : '',
+      c.company ? '<span class="tag" style="background:#f3f4f6;color:#374151">🏢 ' + c.company + '</span>' : '',
+      c.college ? '<span class="tag" style="background:#f0fdf4;color:#166534">🎓 ' + c.college + '</span>' : '',
+      (c.birthday && daysUntil(c.birthday) <= 14) ? '<span class="tag" style="background:#fff7ed;color:#c2410c">🎂 Soon</span>' : ''
+    ].filter(Boolean).join('');
+    return '<div class="contact-card" onclick="openDetail(\'' + c.id + '\')">'
+      + '<div class="card-top">'
+      + '<div class="avatar" style="background:' + avatarColor(c.name) + '">' + initials(c.name) + '</div>'
+      + '<div class="card-info"><div class="card-name">' + c.name + '</div>'
+      + '<div class="card-meta">' + ((c.city||c.country) ? '<span>📍 ' + [c.city,c.country].filter(Boolean).join(', ') + '</span>' : '') + '</div></div>'
+      + '<span class="ping-badge ' + ps.cls + '">' + ps.label + '</span>'
+      + '</div>' + (tags ? '<div class="card-tags">' + tags + '</div>' : '') + '</div>';
+  }).join('');
+}
+
+function setCategory(c) { activeCategory = c; showOverdueOnly = false; render(); }
+function filterOverdue() { showOverdueOnly = !showOverdueOnly; activeCategory = 'All'; render(); }
+
+// ======= LOCATION FILTER =======
+function openLocationFilter() {
+  const locs = {};
+  contacts.forEach(c => { if(c.country) locs[c.country]=(locs[c.country]||0)+1; if(c.city) locs[c.city]=(locs[c.city]||0)+1; });
+  document.getElementById('locList').innerHTML = Object.entries(locs).sort((a,b)=>b[1]-a[1]).map(([l,n]) =>
+    '<div class="loc-item' + (activeLocation===l?' selected':'') + '" onclick="setLocation(\'' + l.replace(/'/g,"\\'") + '\')">' + l + '<span class="loc-count">' + n + '</span></div>'
+  ).join('') || '<p style="color:var(--subtext);text-align:center;padding:20px">No locations added yet</p>';
+  document.getElementById('locModal').classList.add('open');
+}
+function setLocation(l) { activeLocation = l; closeLocModalDirect(); render(); }
+function clearLocFilter() { activeLocation = null; closeLocModalDirect(); render(); }
+function closeLocModal(e) { if (e.target===document.getElementById('locModal')) closeLocModalDirect(); }
+function closeLocModalDirect() { document.getElementById('locModal').classList.remove('open'); }
+
+// ======= ADD/EDIT =======
+function openAddModal() {
+  editingId = null;
+  document.getElementById('editModalTitle').textContent = 'Add Contact';
+  document.getElementById('deleteRow').style.display = 'none';
+  document.getElementById('importContactBtn').style.display = 'flex';
+  ['fName','fCity','fCountry','fCompany','fCollege','fPhone','fEmail','fNotes','fBday'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fLast').value = new Date().toISOString().slice(0,10);
+  populateCatSelect('Friends');
+  document.getElementById('fFreq').value = '30';
+  document.getElementById('editModal').classList.add('open');
+}
+function openEditModal(id) {
+  const c = contacts.find(x => x.id===id); if (!c) return;
+  editingId = id;
+  document.getElementById('editModalTitle').textContent = 'Edit Contact';
+  document.getElementById('deleteRow').style.display = 'flex';
+  document.getElementById('importContactBtn').style.display = 'none';
+  document.getElementById('fName').value = c.name||'';
+  populateCatSelect(c.category||'Friends');
+  document.getElementById('fFreq').value = c.pingFreq||'30';
+  document.getElementById('fCity').value = c.city||'';
+  document.getElementById('fCountry').value = c.country||'';
+  document.getElementById('fCompany').value = c.company||'';
+  document.getElementById('fCollege').value = c.college||'';
+  document.getElementById('fPhone').value = c.phone||'';
+  document.getElementById('fEmail').value = c.email||'';
+  document.getElementById('fBday').value = c.birthday||'';
+  document.getElementById('fLast').value = c.lastContacted||'';
+  document.getElementById('fNotes').value = c.notes||'';
+  closeDetailModal(null, true);
+  document.getElementById('editModal').classList.add('open');
+}
+function saveContact() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { document.getElementById('fName').focus(); return; }
+  const data = {
+    id: editingId || Date.now().toString(), name,
+    category: document.getElementById('fCat').value,
+    pingFreq: document.getElementById('fFreq').value,
+    city: document.getElementById('fCity').value.trim(),
+    country: document.getElementById('fCountry').value.trim(),
+    company: document.getElementById('fCompany').value.trim(),
+    college: document.getElementById('fCollege').value.trim(),
+    phone: document.getElementById('fPhone').value.trim(),
+    email: document.getElementById('fEmail').value.trim(),
+    birthday: document.getElementById('fBday').value,
+    lastContacted: document.getElementById('fLast').value,
+    notes: document.getElementById('fNotes').value.trim(),
+    log: editingId ? ((contacts.find(x=>x.id===editingId)||{}).log||[]) : []
+  };
+  contacts = editingId ? contacts.map(c=>c.id===editingId?data:c) : [...contacts, data];
+  save(); closeEditModalDirect(); render();
+}
+function deleteContact() {
+  if (!confirm('Delete this contact?')) return;
+  contacts = contacts.filter(c=>c.id!==editingId);
+  save(); closeEditModalDirect(); render();
+}
+function closeEditModal(e) { if(e&&e.target===document.getElementById('editModal')) closeEditModalDirect(); }
+function closeEditModalDirect() { document.getElementById('editModal').classList.remove('open'); }
+
+// ======= iOS CONTACTS =======
+async function importFromContacts() {
+  if (!navigator.contacts) { alert('This feature requires Safari on iOS 14+ or a supported browser.'); return; }
+  try {
+    const r = await navigator.contacts.select(['name','tel','email'], {multiple:false});
+    if (r&&r.length) {
+      if(r[0].name&&r[0].name[0]) document.getElementById('fName').value = r[0].name[0];
+      if(r[0].tel&&r[0].tel[0]) document.getElementById('fPhone').value = r[0].tel[0];
+      if(r[0].email&&r[0].email[0]) document.getElementById('fEmail').value = r[0].email[0];
+    }
+  } catch(e) { alert('Could not access contacts: ' + e.message); }
+}
+
+// ======= MARK PINGED =======
+function markPinged(id) {
+  contacts = contacts.map(c => c.id===id ? Object.assign({},c,{lastContacted:new Date().toISOString().slice(0,10)}) : c);
+  save(); closeDetailModal(null,true); render();
+}
+
+// ======= DETAIL =======
+function openDetail(id) {
+  const c = contacts.find(x=>x.id===id); if (!c) return;
+  const ps = pingStatus(c);
+  const color = avatarColor(c.name);
+  const days = daysSince(c.lastContacted);
+  const bdDays = daysUntil(c.birthday);
+  const logItems = (c.log||[]).slice().reverse().slice(0,5);
+  const waNum = c.phone ? c.phone.replace(/[^0-9]/g, '') : '';
+  document.getElementById('detailContent').innerHTML =
+    '<div class="modal-handle"></div>'
+    + '<div class="detail-avatar" style="background:' + color + '">' + initials(c.name) + '</div>'
+    + '<div class="detail-name">' + c.name + '</div>'
+    + '<div class="detail-subtitle">' + (c.category?catEmoji(c.category)+' '+c.category:'') + ((c.city||c.country)?' &middot; 📍 '+[c.city,c.country].filter(Boolean).join(', '):'') + '</div>'
+    + '<div style="text-align:center;margin-top:8px;"><span class="ping-badge ' + ps.cls + '" style="font-size:13px;padding:4px 12px">' + ps.label + '</span></div>'
+    + '<div class="quick-actions">'
+    + '<div class="qa-btn" onclick="markPinged(\'' + c.id + '\')"><span class="qa-icon">✅</span>Pinged!</div>'
+    + '<div class="qa-btn" onclick="openLogModal(\'' + c.id + '\')"><span class="qa-icon">📝</span>Log</div>'
+    + (c.phone ? '<div class="qa-btn" onclick="window.location=\'tel:' + c.phone + '\'"><span class="qa-icon">📞</span>Call</div>' : '')
+    + (c.phone ? '<div class="qa-btn" onclick="window.open(\'https://wa.me/' + waNum + '\')"><span class="qa-icon">💬</span>WhatsApp</div>' : '')
+    + (c.email ? '<div class="qa-btn" onclick="window.location=\'mailto:' + c.email + '\'"><span class="qa-icon">📧</span>Email</div>' : '')
+    + '</div>'
+    + '<div class="detail-section"><h3>Details</h3>'
+    + (c.company?'<div class="detail-row"><div class="detail-icon">🏢</div><div class="detail-val"><div class="label">Company</div>'+c.company+'</div></div>':'')
+    + (c.college?'<div class="detail-row"><div class="detail-icon">🎓</div><div class="detail-val"><div class="label">College</div>'+c.college+'</div></div>':'')
+    + (c.phone?'<div class="detail-row"><div class="detail-icon">📱</div><div class="detail-val"><div class="label">Phone</div>'+c.phone+'</div></div>':'')
+    + (c.email?'<div class="detail-row"><div class="detail-icon">📧</div><div class="detail-val"><div class="label">Email</div>'+c.email+'</div></div>':'')
+    + (c.birthday?'<div class="detail-row"><div class="detail-icon">🎂</div><div class="detail-val"><div class="label">Birthday</div>'+formatDate(c.birthday)+(bdDays===0?' (Today!)':(bdDays!==null?' (in '+bdDays+' days)':''))+'</div></div>':'')
+    + '<div class="detail-row"><div class="detail-icon">🔔</div><div class="detail-val"><div class="label">Ping every</div>'+(c.pingFreq||30)+' days</div></div>'
+    + '<div class="detail-row"><div class="detail-icon">📅</div><div class="detail-val"><div class="label">Last contacted</div>'+formatDate(c.lastContacted)+(days!==null?' ('+days+'d ago)':'')+'</div></div>'
+    + (c.notes?'<div class="detail-row"><div class="detail-icon">💬</div><div class="detail-val"><div class="label">Notes</div>'+c.notes+'</div></div>':'')
+    + '</div>'
+    + (logItems.length?'<div class="detail-section"><h3>Interaction Log</h3>'
+      + logItems.map(l=>'<div class="log-item"><div class="log-item-date">'+formatDate(l.date)+'</div>'+(l.note?'<div class="log-item-note">'+l.note+'</div>':'')+'</div>').join('')
+      + '</div>':'')
+    + '<div class="btn-row" style="margin-top:20px;">'
+    + '<button class="btn btn-ghost" onclick="closeDetailModal(null,true)">Close</button>'
+    + '<button class="btn btn-primary" onclick="openEditModal(\''+c.id+'\')">Edit</button>'
+    + '</div>';
+  document.getElementById('detailModal').classList.add('open');
+}
+function closeDetailModal(e,force) { if(force||(e&&e.target===document.getElementById('detailModal'))) document.getElementById('detailModal').classList.remove('open'); }
+
+// ======= LOG =======
+function openLogModal(id) {
+  loggingId = id;
+  document.getElementById('logDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('logNote').value = '';
+  closeDetailModal(null,true);
+  document.getElementById('logModal').classList.add('open');
+}
+function saveLog() {
+  const date = document.getElementById('logDate').value;
+  const note = document.getElementById('logNote').value.trim();
+  contacts = contacts.map(c => c.id!==loggingId ? c : Object.assign({},c,{lastContacted:date,log:[...(c.log||[]),{date,note}]}));
+  save(); closeLogModalDirect(); render();
+}
+function closeLogModal(e) { if(e.target===document.getElementById('logModal')) closeLogModalDirect(); }
+function closeLogModalDirect() { document.getElementById('logModal').classList.remove('open'); }
+
+// ======= GROUPS =======
+function openGroupManager() { renderGroupList(); document.getElementById('groupModal').classList.add('open'); }
+function renderGroupList() {
+  document.getElementById('groupList').innerHTML = [...DEFAULT_CATEGORIES,...customGroups].map(g => {
+    const isC = !DEFAULT_CATEGORIES.includes(g);
+    return '<div class="group-item">'
+      + '<span class="group-item-name">' + catEmoji(g) + ' ' + g + (isC?'':'<span style="font-size:11px;color:var(--subtext)"> (default)</span>') + '</span>'
+      + (isC?'<button class="group-item-del" onclick="removeCustomGroup(\''+g+'\')">🗑️</button>':'')
+      + '</div>';
+  }).join('');
+}
+function addCustomGroup() {
+  const name = document.getElementById('newGroupInput').value.trim();
+  if (!name) return;
+  if ([...DEFAULT_CATEGORIES,...customGroups].includes(name)) { alert('Group already exists.'); return; }
+  customGroups.push(name); saveGroups();
+  document.getElementById('newGroupInput').value = '';
+  renderGroupList(); render(); writeToFirebase();
+}
+function removeCustomGroup(name) {
+  const n = contacts.filter(c=>c.category===name).length;
+  if (n>0 && !confirm('Remove "'+name+'"? '+n+' contact(s) moved to Other.')) return;
+  contacts = contacts.map(c=>c.category===name?Object.assign({},c,{category:'Other'}):c);
+  customGroups = customGroups.filter(g=>g!==name);
+  save(); saveGroups(); renderGroupList(); render();
+}
+function closeGroupModal(e) { if(e.target===document.getElementById('groupModal')) closeGroupModalDirect(); }
+function closeGroupModalDirect() { document.getElementById('groupModal').classList.remove('open'); }
+
+// ======= DASHBOARD =======
+function openDashboard() {
+  const total = contacts.length;
+  const overdue = contacts.filter(isOverdue).length;
+  const health = total===0?0:Math.round(((total-overdue)/total)*100);
+  const grade = health>=90?'Excellent 🌟':health>=70?'Good 👍':health>=50?'Needs work 😐':'Neglected 😬';
+  const gc = health>=90?'#10b981':health>=70?'#5B6CF9':health>=50?'#f59e0b':'#ef4444';
+  const catAll = [...DEFAULT_CATEGORIES,...customGroups];
+  const upBdays = contacts.filter(c=>c.birthday&&daysUntil(c.birthday)<=30).length;
+  document.getElementById('dashContent').innerHTML =
+    '<div class="modal-handle"></div>'
+    + '<div class="modal-title">Network Dashboard</div>'
+    + '<div class="health-score"><div class="score" style="color:'+gc+'">'+health+'%</div>'
+    + '<div class="grade" style="color:'+gc+'">'+grade+'</div>'
+    + '<div style="font-size:13px;color:var(--subtext);margin-top:4px;">Ping health score</div></div>'
+    + '<div class="dash-grid">'
+    + '<div class="dash-card"><div class="big">'+total+'</div><div class="lbl">Total contacts</div></div>'
+    + '<div class="dash-card"><div class="big" style="color:#ef4444">'+overdue+'</div><div class="lbl">Overdue pings</div></div>'
+    + '<div class="dash-card"><div class="big" style="color:#f59e0b">'+contacts.filter(c=>!c.lastContacted).length+'</div><div class="lbl">Never contacted</div></div>'
+    + '<div class="dash-card"><div class="big" style="color:#10b981">'+contacts.filter(c=>c.birthday).length+'</div><div class="lbl">Birthdays tracked</div></div>'
+    + '</div>'
+    + '<div class="detail-section"><h3>Contacts by group</h3>'
+    + catAll.filter(c=>contacts.filter(x=>x.category===c).length>0).map(c=>{
+      const n=contacts.filter(x=>x.category===c).length;
+      const pct=total>0?Math.round(n/total*100):0;
+      return '<div class="dash-bar-row"><div class="dash-bar-label"><span>'+catEmoji(c)+' '+c+'</span><span>'+n+'</span></div>'
+        +'<div class="dash-bar-track"><div class="dash-bar-fill" style="width:'+pct+'%"></div></div></div>';
+    }).join('')+'</div>'
+    + (upBdays?'<div style="margin-top:14px;padding:12px;background:#fff7ed;border-radius:10px;font-size:14px;color:#92400e">🎂 '+upBdays+' birthday'+(upBdays>1?'s':'')+' in the next 30 days!</div>':'')
+    + '<div class="btn-row" style="margin-top:20px;"><button class="btn btn-ghost" onclick="closeDashModal(null,true)">Close</button></div>';
+  document.getElementById('dashModal').classList.add('open');
+}
+function closeDashModal(e,force) { if(force||(e&&e.target===document.getElementById('dashModal'))) document.getElementById('dashModal').classList.remove('open'); }
+
+// ======= EXPORT/IMPORT =======
+function openExportImport() { document.getElementById('exportModal').classList.add('open'); }
+function exportContacts() {
+  const blob = new Blob([JSON.stringify({version:1,contacts,customGroups},null,2)],{type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'my-network-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+}
+function exportCSV() {
+  const hdr = ['Name','Category','City','Country','Company','College','Phone','Email','Birthday','Last Contacted','Ping Freq','Notes'];
+  const rows = contacts.map(c=>[c.name,c.category,c.city,c.country,c.company,c.college,c.phone,c.email,c.birthday,c.lastContacted,c.pingFreq,c.notes].map(v=>'"'+(v||'').replace(/"/g,'""')+'"'));
+  const blob = new Blob([[hdr,...rows].map(r=>r.join(',')).join('\n')],{type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'my-network-'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
+function importContacts(event) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data.contacts)) throw new Error('Invalid format');
+      if (!confirm('Import '+data.contacts.length+' contacts?')) return;
+      const ids = new Set(contacts.map(c=>c.id));
+      contacts = [...contacts, ...data.contacts.filter(c=>!ids.has(c.id))];
+      if (data.customGroups) customGroups = [...new Set([...customGroups,...data.customGroups])];
+      save(); saveGroups(); render(); alert('Import complete!');
+    } catch(err) { alert('Error: '+err.message); }
+  };
+  reader.readAsText(file);
+}
+function closeExportModal(e) { if(e.target===document.getElementById('exportModal')) closeExportModalDirect(); }
+function closeExportModalDirect() { document.getElementById('exportModal').classList.remove('open'); }
+
+// ======= DEMO + INIT =======
+function loadDemo() {
+  if (contacts.length > 0) return;
+  const ago = n => { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
+  const bday = (m,d) => new Date().getFullYear()+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  contacts = [
+    { id:'1', name:'Arjun Mehta', category:'Close Friends', pingFreq:'14', city:'Mumbai', country:'India', company:'Zerodha', college:'IIT Bombay', phone:'+91 9876543210', email:'arjun@example.com', birthday:bday(3,20), lastContacted:ago(10), notes:'Met at college. Talks about investing.', log:[] },
+    { id:'2', name:'Sarah Kim', category:'Work', pingFreq:'14', city:'San Francisco', country:'USA', company:'Google', college:'Stanford', phone:'+1 4155551234', email:'sarah@google.com', birthday:bday(7,4), lastContacted:ago(20), notes:'Work contact at Google. Great for AI referrals.', log:[] },
+    { id:'3', name:'Priya Nair', category:'Family', pingFreq:'7', city:'Bangalore', country:'India', company:'', college:'', phone:'+91 9988776655', email:'priya@family.com', birthday:bday(4,1), lastContacted:ago(3), notes:'Cousin. Calls every Sunday.', log:[] },
+    { id:'4', name:'Rohan Das', category:'College', pingFreq:'60', city:'Delhi', country:'India', company:'Amazon', college:'IIT Delhi', phone:'+91 9123456789', email:'rohan@amazon.com', birthday:bday(9,15), lastContacted:ago(80), notes:'College roommate. Works on AWS.', log:[] },
+    { id:'5', name:'Emily Johnson', category:'Work', pingFreq:'30', city:'London', country:'UK', company:'Revolut', college:'Oxford', phone:'+44 7700900000', email:'emily@revolut.com', birthday:'', lastContacted:ago(45), notes:'Product lead at Revolut.', log:[] },
+    { id:'6', name:'Karan Shah', category:'Acquaintance', pingFreq:'90', city:'Dubai', country:'UAE', company:'KPMG', college:'', phone:'+971 501234567', email:'karan@kpmg.com', birthday:'', lastContacted:ago(100), notes:'Met at a conference. Finance professional.', log:[] },
+  ];
+  saveLocal();
+}
+
+// Auto-reconnect Firebase if sync key is saved (config always available)
+(function autoConnect() {
+  const cfg = JSON.parse(localStorage.getItem('nn_fbConfig')||'null') || HARDCODED_FB_CONFIG;
+  const key = localStorage.getItem('nn_fbSyncKey')||'';
+  if (key) {
+    setSyncStatus('syncing','Connecting...');
+    initFirebase(cfg, key);
+  }
+})();
+
+loadDemo();
+render();
+</script>
+</body>
+</html>
