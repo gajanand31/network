@@ -239,7 +239,9 @@
     <div class="modal-handle"></div>
     <div class="modal-title" id="editModalTitle">Add Contact</div>
     <div style="display:flex;gap:8px;margin-bottom:14px;" id="importContactBtn">
-      <button class="btn btn-ghost" style="font-size:13px;padding:10px;" onclick="importFromContacts()">📱 Import from Phone Contacts</button>
+      <button id="phoneContactsBtn" class="btn btn-ghost" style="font-size:13px;padding:10px;flex:1;" onclick="importFromContacts()">📱 Phone Contacts</button>
+      <button class="btn btn-ghost" style="font-size:13px;padding:10px;flex:1;" onclick="document.getElementById('vcfFile').click()">📇 Import vCard</button>
+      <input type="file" id="vcfFile" accept=".vcf,.vcard" style="display:none" onchange="importVCard(event)" />
     </div>
     <div class="form-group">
       <label class="form-label">Full Name *</label>
@@ -757,6 +759,7 @@ function openAddModal() {
   document.getElementById('editModalTitle').textContent = 'Add Contact';
   document.getElementById('deleteRow').style.display = 'none';
   document.getElementById('importContactBtn').style.display = 'flex';
+  document.getElementById('phoneContactsBtn').style.display = navigator.contacts ? 'flex' : 'none';
   ['fName','fCity','fCountry','fCompany','fCollege','fPhone','fEmail','fNotes','fBday'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('fLast').value = new Date().toISOString().slice(0,10);
   populateCatSelect('Friends');
@@ -824,6 +827,81 @@ async function importFromContacts() {
       if(r[0].email&&r[0].email[0]) document.getElementById('fEmail').value = r[0].email[0];
     }
   } catch(e) { alert('Could not access contacts: ' + e.message); }
+}
+
+// ======= VCARD IMPORT =======
+function parseVCards(text) {
+  const cards = [];
+  const blocks = text.split(/END:VCARD/i).filter(b => b.includes('BEGIN:VCARD'));
+  blocks.forEach(block => {
+    const getField = (label) => {
+      const match = block.match(new RegExp(label + '[^:]*:([^\r\n]+)', 'i'));
+      return match ? match[1].trim() : '';
+    };
+    let name = getField('FN');
+    if (!name) {
+      const n = getField('N');
+      if (n) {
+        const parts = n.split(';').map(p => p.trim()).filter(Boolean);
+        name = parts.reverse().join(' ').trim();
+      }
+    }
+    if (!name) return;
+    const telMatch = block.match(/TEL[^:]*:([^\r\n]+)/i);
+    const phone = telMatch ? telMatch[1].trim() : '';
+    const emailMatch = block.match(/EMAIL[^:]*:([^\r\n]+)/i);
+    const email = emailMatch ? emailMatch[1].trim() : '';
+    const org = getField('ORG').replace(/;/g, ' ').trim();
+    let bday = '';
+    const bdayMatch = block.match(/BDAY[^:]*:([^\r\n]+)/i);
+    if (bdayMatch) {
+      const raw = bdayMatch[1].trim().replace(/[^0-9]/g, '');
+      if (raw.length === 8) bday = raw.slice(0,4)+'-'+raw.slice(4,6)+'-'+raw.slice(6,8);
+    }
+    cards.push({ name, phone, email, company: org, birthday: bday });
+  });
+  return cards;
+}
+
+function importVCard(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const cards = parseVCards(text);
+    if (cards.length === 0) { alert('No contacts found in this file.'); return; }
+
+    if (cards.length === 1) {
+      // Single contact — fill the form
+      const c = cards[0];
+      if (c.name) document.getElementById('fName').value = c.name;
+      if (c.phone) document.getElementById('fPhone').value = c.phone;
+      if (c.email) document.getElementById('fEmail').value = c.email;
+      if (c.company) document.getElementById('fCompany').value = c.company;
+      if (c.birthday) document.getElementById('fBday').value = c.birthday;
+    } else {
+      // Multiple contacts — bulk import
+      closeEditModalDirect();
+      const existing = new Set(contacts.map(c => c.name.toLowerCase()));
+      const newOnes = cards.filter(c => !existing.has(c.name.toLowerCase()));
+      if (newOnes.length === 0) { alert('All contacts from this file already exist.'); return; }
+      if (!confirm('Import ' + newOnes.length + ' new contacts from ' + cards.length + ' found? They will be added to "Other" group — you can reassign them after.')) return;
+      newOnes.forEach(c => {
+        contacts.push({
+          id: Date.now().toString() + Math.random().toString(36).slice(2),
+          name: c.name, category: 'Other', pingFreq: '30',
+          phone: c.phone, email: c.email, company: c.company,
+          birthday: c.birthday, city: '', country: '', college: '',
+          lastContacted: '', notes: '', log: []
+        });
+      });
+      save(); render();
+      alert('Imported ' + newOnes.length + ' contacts!');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
 }
 
 // ======= MARK PINGED =======
